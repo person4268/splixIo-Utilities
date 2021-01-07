@@ -1,3 +1,6 @@
+// The minification makes the formatting really hard to read. You could probably think of the commas as semicolons
+// really confusing to read but you get used to it. It's a lot nicer if you have an editor that can rename variables
+// and highlight brackets and all that, VS Code is nice enough for me. 
 var GLOBAL_SPEED = .006
 	, VIEWPORT_RADIUS = 30
 	, MAX_ZOOM = 430
@@ -9,7 +12,7 @@ var GLOBAL_SPEED = .006
 	, JS_VERSION = 80
 	, IS_DEV_BUILD = false;
 !function () {
-	for (var e = "x", t = document.getElementsByTagName("script"), n = 0; n < t.length; n++) {
+	for (var e = "x", t = document.getElementsByTagName("script"), n = 0; n < t.length; n++) {  // probably checks if it's in a dev env by checking if splix.io is a subdirectory and not a domain in script src references.
 		var a = t[n].src;
 		0 < a.indexOf("//splix.io/js/") && (e = a.substring(a.indexOf("splix.io/js/") + 12, a.length - 3))
 	}
@@ -1221,33 +1224,33 @@ function doConnect(e) {
 	return false
 }
 function onMessage(e) {
-	var posX;
-	var posY;
+	var startX;
+	var startY;
 	var state;
 	var playerId;
 	var player;
 	var fillX;
 	var fillY;
 	var iter;
-	var c;
+	var x;
 	var d;
 	var data = new Uint8Array(e.data);
 	if (data[0] == receiveAction.UPDATE_BLOCKS && ( //Sets block at pos(data[1, 2], data[3, 4]) to state(data[5]). Owned by player(data[5], data[6]])
-		posX = bytesToInt(data[1], data[2]), //Looks like a 16 bit int 
-		posY = bytesToInt(data[3], data[4]),
+		startX = bytesToInt(data[1], data[2]), //Looks like a 16 bit int 
+		startY = bytesToInt(data[3], data[4]),
 		state = data[5],
-		getBlock(posX, posY).setBlockId(state)),
+		getBlock(startX, startY).setBlockId(state)),
 		data[0] == receiveAction.PLAYER_POS) {
-		posX = bytesToInt(data[1], data[2]),
-			posY = bytesToInt(data[3], data[4]),
+		startX = bytesToInt(data[1], data[2]),
+			startY = bytesToInt(data[3], data[4]),
 			player = getPlayer(playerId = bytesToInt(data[5], data[6]))
 		player.hasReceivedPosition = true,
 			player.moveRelativeToServerPosNextFrame = true,
 			player.lastServerPosSentTime = Date.now(),
 			lastMyPosHasBeenConfirmed = true;
 		var directionIThink = data[7]
-			, p = [posX, posY]
-			, h = [posX, posY]
+			, p = [startX, startY]
+			, h = [startX, startY]
 			, g = 0;
 		(player.isMyPlayer || 50 < thisServerAvgPing) && (g = thisServerAvgPing / 2 * GLOBAL_SPEED),
 			movePos(h, directionIThink, g);
@@ -1280,8 +1283,8 @@ function onMessage(e) {
 	}
 
 	data[0] == receiveAction.FILL_AREA && //Format: 2(startX), 2(startY), 2(endX), 2(endY), 2(blockState)
-		fillArea(posX = bytesToInt(data[1], data[2]),
-			posY = bytesToInt(data[3], data[4]),
+		fillArea(startX = bytesToInt(data[1], data[2]),
+			startY = bytesToInt(data[3], data[4]),
 			fillX = bytesToInt(data[5], data[6]),
 			fillY = bytesToInt(data[7], data[8]),
 			state = data[9], data[10]);
@@ -1324,9 +1327,9 @@ function onMessage(e) {
 	if (data[0] == receiveAction.EMPTY_TRAIL_WITH_LAST_POS) {
 		if (0 < (player = getPlayer(playerId = bytesToInt(data[1], data[2]))).trails.length) {
 			var P = player.trails[player.trails.length - 1].trail;
-			0 < P.length && (posX = bytesToInt(data[3], data[4]),
-				posY = bytesToInt(data[5], data[6]),
-				P.push([posX, posY]))
+			0 < P.length && (startX = bytesToInt(data[3], data[4]),
+				startY = bytesToInt(data[5], data[6]),
+				P.push([startX, startY]))
 		}
 		player.isMyPlayer && isRequestingMyTrail && (skipTrailRequestResponse = true),
 			player.trails.push({
@@ -1335,19 +1338,19 @@ function onMessage(e) {
 			})
 	}
 	if (data[0] == receiveAction.PLAYER_DIE && (player = getPlayer(playerId = bytesToInt(data[1], data[2])),
-		3 < data.length && (posX = bytesToInt(data[3], data[4]),
-			posY = bytesToInt(data[5], data[6]),
-			player.pos = [posX, posY]),
+		3 < data.length && (startX = bytesToInt(data[3], data[4]),
+			startY = bytesToInt(data[5], data[6]),
+			player.pos = [startX, startY]),
 		player.die(true)),
 		data[0] == receiveAction.CHUNK_OF_BLOCKS) {
-		for (posX = bytesToInt(data[1], data[2]),
-			posY = bytesToInt(data[3], data[4]),
+		for (startX = bytesToInt(data[1], data[2]), // first set of 4 uint16s specify where to stop and end the fill
+			startY = bytesToInt(data[3], data[4]),
 			fillX = bytesToInt(data[5], data[6]),
 			fillY = bytesToInt(data[7], data[8]),
 			iter = 9,
-			c = posX; c < posX + fillX; c++) //c is condition
-			for (var x = posY; x < posY + fillY; x++) //inner for loop. This is confusing D: We're doing a 2d iteration here. But for x to y we set it to state iterator
-				getBlock(c, x).setBlockId(data[iter], false),
+			x = startX; x < startX + fillX; x++) 
+			for (var y = startY; y < startY + fillY; y++) //iterates over every block in the range and sets them according to an array of the size of (fillX-startX)*(fillY-startY)
+				getBlock(x, y).setBlockId(data[iter], false),
 					iter++;
 		hasReceivedChunkThisGame || (hasReceivedChunkThisGame = true,
 			wsSendMsg(sendAction.READY),
@@ -1451,12 +1454,12 @@ function onMessage(e) {
 		for (minimapCtx.clearRect(2 * O, 0, 40, 160),
 			minimapCtx.fillStyle = "#000000",
 			iter = 1; iter < data.length; iter++)
-			for (c = 0; c < 8; c++) {
-				if (0 != (data[iter] & 1 << c)) {
-					var N = 8 * (iter - 2) + c;
-					posX = Math.floor(N / 80) % 80 + O,
-						posY = N % 80,
-						minimapCtx.fillRect(2 * posX, 2 * posY, 2, 2)
+			for (x = 0; x < 8; x++) {
+				if (0 != (data[iter] & 1 << x)) {
+					var N = 8 * (iter - 2) + x;
+					startX = Math.floor(N / 80) % 80 + O,
+						startY = N % 80,
+						minimapCtx.fillRect(2 * startX, 2 * startY, 2, 2)
 				}
 			}
 	}
@@ -1469,11 +1472,11 @@ function onMessage(e) {
 		data[0] == receiveAction.PLAYER_HIT_LINE) {
 		player = getPlayer(playerId = bytesToInt(data[1], data[2]));
 		var _ = getColorForBlockSkinId(data[3]);
-		posX = bytesToInt(data[4], data[5]),
-			posY = bytesToInt(data[6], data[7]);
+		startX = bytesToInt(data[4], data[5]),
+			startY = bytesToInt(data[6], data[7]);
 		var U = false;
 		8 < data.length && (U = 1 == data[8]),
-			player.addHitLine([posX, posY], _, U),
+			player.addHitLine([startX, startY], _, U),
 			player.isMyPlayer && !U && doCamShakeDir(player.dir, 10, false)
 	}
 	if (data[0] == receiveAction.REFRESH_AFTER_DIE && (doRefreshAfterDie = true),
