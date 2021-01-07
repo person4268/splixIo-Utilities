@@ -1226,20 +1226,20 @@ function doConnect(e) {
 function onMessage(e) {
 	var startX;
 	var startY;
-	var state;
+	var blkType;
 	var playerId;
 	var player;
 	var fillX;
 	var fillY;
 	var iter;
-	var x;
+	var bitInByte;
 	var d;
 	var data = new Uint8Array(e.data);
 	if (data[0] == receiveAction.UPDATE_BLOCKS && ( //Sets block at pos(data[1, 2], data[3, 4]) to state(data[5]). Owned by player(data[5], data[6]])
 		startX = bytesToInt(data[1], data[2]), //Looks like a 16 bit int 
 		startY = bytesToInt(data[3], data[4]),
-		state = data[5],
-		getBlock(startX, startY).setBlockId(state)),
+		blkType = data[5],
+		getBlock(startX, startY).setBlockId(blkType)),
 		data[0] == receiveAction.PLAYER_POS) {
 		startX = bytesToInt(data[1], data[2]),
 			startY = bytesToInt(data[3], data[4]),
@@ -1287,7 +1287,7 @@ function onMessage(e) {
 			startY = bytesToInt(data[3], data[4]),
 			fillX = bytesToInt(data[5], data[6]),
 			fillY = bytesToInt(data[7], data[8]),
-			state = data[9], data[10]);
+			blkType = data[9], data[10]);
 
 
 	if (data[0] == receiveAction.SET_TRAIL) {
@@ -1348,9 +1348,9 @@ function onMessage(e) {
 			fillX = bytesToInt(data[5], data[6]),
 			fillY = bytesToInt(data[7], data[8]),
 			iter = 9,
-			x = startX; x < startX + fillX; x++) 
+			bitInByte = startX; bitInByte < startX + fillX; bitInByte++) 
 			for (var y = startY; y < startY + fillY; y++) //iterates over every block in the range and sets them according to an array of the size of (fillX-startX)*(fillY-startY)
-				getBlock(x, y).setBlockId(data[iter], false),
+				getBlock(bitInByte, y).setBlockId(data[iter], false),
 					iter++;
 		hasReceivedChunkThisGame || (hasReceivedChunkThisGame = true,
 			wsSendMsg(sendAction.READY),
@@ -1449,14 +1449,14 @@ function onMessage(e) {
 					deathTransitionTimeout = null
 			}, 1e3)
 	}
-	if (data[0] == receiveAction.MINIMAP) {
+	if (data[0] == receiveAction.MINIMAP) { // more or less monochrome bitmap on the bit level to save space, like how bit flags work instead of using booleans 
 		var O = 20 * data[1];
 		for (minimapCtx.clearRect(2 * O, 0, 40, 160),
 			minimapCtx.fillStyle = "#000000",
 			iter = 1; iter < data.length; iter++)
-			for (x = 0; x < 8; x++) {
-				if (0 != (data[iter] & 1 << x)) {
-					var N = 8 * (iter - 2) + x;
+			for (bitInByte = 0; bitInByte < 8; bitInByte++) {
+				if (0 != (data[iter] & 1 << bitInByte)) {
+					var N = 8 * (iter - 2) + bitInByte;
 					startX = Math.floor(N / 80) % 80 + O,
 						startY = N % 80,
 						minimapCtx.fillRect(2 * startX, 2 * startY, 2, 2)
@@ -2865,81 +2865,83 @@ function drawAnimatedText(e, t, n, a, i, o, r, s, l, c, d) {
 function orderTwoPos(e, t) {
 	return [[Math.min(e[0], t[0]), Math.min(e[1], t[1])], [Math.max(e[0], t[0]), Math.max(e[1], t[1])]]
 }
-function fillArea(e, t, n, a, i, o, r) {
+// probablly, not confirmed but it seems like this
+// no idea what state is tbh
+function fillArea(startX, startY, fillX, fillY, type, o, r) {
 	var s = void 0 === r;
 	s && (r = blocks),
 		void 0 === o && (o = 0);
-	var l = e + n
-		, c = t + a;
-	null !== myPos && s && (e = Math.max(e, Math.round(myPos[0]) - VIEWPORT_RADIUS),
-		t = Math.max(t, Math.round(myPos[1]) - VIEWPORT_RADIUS),
+	var l = startX + fillX
+		, c = startY + fillY;
+	null !== myPos && s && (startX = Math.max(startX, Math.round(myPos[0]) - VIEWPORT_RADIUS),
+		startY = Math.max(startY, Math.round(myPos[1]) - VIEWPORT_RADIUS),
 		l = Math.min(l, Math.round(myPos[0]) + VIEWPORT_RADIUS),
 		c = Math.min(c, Math.round(myPos[1]) + VIEWPORT_RADIUS));
-	for (var d = e; d < l; d++)
-		for (var m = t; m < c; m++) {
-			var u = getBlock(d, m, r)
-				, p = applyPattern(i, o, d, m);
+	for (var x = startX; x < l; x++)
+		for (var y = startY; y < c; y++) {
+			var u = getBlock(x, y, r)
+				, p = applyPattern(type, o, x, y);
 			u.setBlockId(p, 400 * Math.random())
 		}
 }
-function applyPattern(e, t, n, a) {
+function applyPattern(e, t, x, y) {
 	var i, o;
 	if (e < 2)
 		return e;
 	var r = false;
 	switch (t) {
 		case 1:
-			r = n % 2 == 0 && a % 2 == 0;
+			r = x % 2 == 0 && y % 2 == 0;
 			break;
 		case 2:
-			r = n % 2 == (a % 2 == 0 ? 0 : 1);
+			r = x % 2 == (y % 2 == 0 ? 0 : 1);
 			break;
 		case 3:
-			r = a % 3 < 1 ? 0 < n % 3 : n % 3 < 1;
+			r = y % 3 < 1 ? 0 < x % 3 : x % 3 < 1;
 			break;
 		case 4:
-			r = n % 5 == 0 || a % 5 == 0;
+			r = x % 5 == 0 || y % 5 == 0;
 			break;
 		case 5:
-			r = (n - a) % 5 == 0;
+			r = (x - y) % 5 == 0;
 			break;
 		case 6:
 			r = .5 < Math.random();
 			break;
 		case 7:
-			i = (n + 7) % 100,
-				r = (o = (a + 7) % 100) < 2 && (i < 2 || 3 < i && i < 6) || 2 == o && 1 < i && i < 4 || 2 < o && o < 5 && 0 < i && i < 5 || 5 == o && (1 == i || 4 == i);
+			i = (x + 7) % 100,
+				r = (o = (y + 7) % 100) < 2 && (i < 2 || 3 < i && i < 6) || 2 == o && 1 < i && i < 4 || 2 < o && o < 5 && 0 < i && i < 5 || 5 == o && (1 == i || 4 == i);
 			break;
 		case 8:
-			r = n % 2 == (a % 2 == 0 ? 0 : 1) && n % 4 != 0 && a % 4 != 1;
+			r = x % 2 == (y % 2 == 0 ? 0 : 1) && x % 4 != 0 && y % 4 != 1;
 			break;
 		case 9:
-			r = mod(n % 8 < 4 ? n + a : n - a - 4, 8) < 3;
+			r = mod(x % 8 < 4 ? x + y : x - y - 4, 8) < 3;
 			break;
 		case 10:
-			r = n % 2 == (a % 2 == 0 ? 0 : 1) && mod(n % 8 < 4 ? n + a : n - a - 4, 8) < 3;
+			r = x % 2 == (y % 2 == 0 ? 0 : 1) && mod(x % 8 < 4 ? x + y : x - y - 4, 8) < 3;
 			break;
 		case 11:
-			o = a % 10,
-				r = (0 === (i = n % 10) || 6 == i) && o < 7 || (2 == i || 4 == i) && 1 < o && o < 5 || (7 == i || 9 == i) && 6 < o || (0 === o || 6 == o) && i < 7 || (2 == o || 4 == o) && 1 < i && i < 5 || (7 == o || 9 == o) && 6 < i;
+			o = y % 10,
+				r = (0 === (i = x % 10) || 6 == i) && o < 7 || (2 == i || 4 == i) && 1 < o && o < 5 || (7 == i || 9 == i) && 6 < o || (0 === o || 6 == o) && i < 7 || (2 == o || 4 == o) && 1 < i && i < 5 || (7 == o || 9 == o) && 6 < i;
 			break;
 		case 12:
-			i = (a % 12 < 6 ? n + 5 : n) % 10,
-				r = (o = a % 6) < 4 && 0 < i && i < 6 && 3 != i || 0 < o && o < 3 && i < 7 || 1 < i && i < 5 && 2 < o && o < 5 || 3 == i && 5 == o;
+			i = (y % 12 < 6 ? x + 5 : x) % 10,
+				r = (o = y % 6) < 4 && 0 < i && i < 6 && 3 != i || 0 < o && o < 3 && i < 7 || 1 < i && i < 5 && 2 < o && o < 5 || 3 == i && 5 == o;
 			break;
 		case 13:
-			r = !(!((n + a) % 10 < 1 || mod(n - a, 10) < 1 || (n + 1) % 10 < 3 && (a + 1) % 10 < 3 || (n + 6) % 10 < 3 && (a + 6) % 10 < 3) || n % 10 == 0 && a % 10 == 0 || n % 10 == 5 && a % 10 == 5);
+			r = !(!((x + y) % 10 < 1 || mod(x - y, 10) < 1 || (x + 1) % 10 < 3 && (y + 1) % 10 < 3 || (x + 6) % 10 < 3 && (y + 6) % 10 < 3) || x % 10 == 0 && y % 10 == 0 || x % 10 == 5 && y % 10 == 5);
 			break;
 		case 14:
-			o = a % 5,
-				r = (1 == (i = (a % 10 < 5 ? n + 5 : n) % 10) || 4 == i) && 1 < o && o < 4 || (1 == o || 4 == o) && 1 < i && i < 4;
+			o = y % 5,
+				r = (1 == (i = (y % 10 < 5 ? x + 5 : x) % 10) || 4 == i) && 1 < o && o < 4 || (1 == o || 4 == o) && 1 < i && i < 4;
 			break;
 		case 15:
-			r = (n + a) % 6 < 1 || mod(n - a, 6) < 1 && n % 6 < 3;
+			r = (x + y) % 6 < 1 || mod(x - y, 6) < 1 && x % 6 < 3;
 			break;
 		case 16:
-			o = a % 6,
-				r = 1 == (i = n % 6) && 2 < o && o < 5 || 4 == i && 0 < o && o < 3 || 4 == o && 2 < i && i < 5 || 1 == o && 0 < i && i < 3;
+			o = y % 6,
+				r = 1 == (i = x % 6) && 2 < o && o < 5 || 4 == i && 0 < o && o < 3 || 4 == o && 2 < i && i < 5 || 1 == o && 0 < i && i < 3;
 			break;
 		case 17:
 			r = .99 < Math.random();
@@ -3012,8 +3014,8 @@ function applyPattern(e, t, n, a) {
 						m = 5,
 						s = [[d = 0, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 0, 0, 0, 1, 1, 0, 0, 0], [1, 0, 1, 1, 1, 0, 1, 1, 0, 0], [1, 0, 1, 1, 1, 1, 0, 1, 0, 0], [1, 0, 1, 1, 1, 1, 0, 1, 0, 0], [1, 0, 1, 1, 1, 0, 1, 1, 0, 0], [1, 0, 1, 0, 0, 1, 1, 0, 0, 0], [1, 0, 1, 1, 1, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
 			}
-			i = (n + (d *= Math.floor(a / c))) % l,
-				r = 1 == s[o = (a + (m *= Math.floor(n / l))) % c][i]
+			i = (x + (d *= Math.floor(y / c))) % l,
+				r = 1 == s[o = (y + (m *= Math.floor(x / l))) % c][i]
 	}
 	return r && (e += SKIN_BLOCK_COUNT),
 		e
